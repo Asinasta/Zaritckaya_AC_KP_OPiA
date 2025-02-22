@@ -52,7 +52,7 @@ int test_system(int* sensor_count, SensorData* sensors, int monitoring_enabled, 
 int mon_sensor_data(const SensorData* data, int mode, int monitoring_enabled);
 
 /* Анализирует файл. Возвращает количество отфильтрованных записей или -1 при ошибке. */
-int analyze_mon_file(int filter_mode, int filter_status, const char* filter_zone);
+int analyze_mon_file(int filter_mode, int filter_status, const char* filter_zone, const char* filter_time);
 
 /* Преобразует режим работы в строку. Возвращает строковое представление режима. */
 const char* mode_to_string(int mode);
@@ -211,6 +211,8 @@ int main() {
             int filter_mode;
             int filter_status;
             char filter_zone[100];
+            char filter_time[100];
+
             printf("\n------------------------------------------------------------------------------------------------");
             printf("\n            Анализ данных о работе системы (сортировка и фильтрация по критериям)               ");
             printf("\n------------------------------------------------------------------------------------------------\n");
@@ -248,7 +250,18 @@ int main() {
                 break;
             }
 
-            analyze_mon_file(filter_mode, filter_status, filter_zone);
+            /* Ввод времени для фильтрации */
+            while (1) {
+                printf("Введите дату для фильтрации (или 'all' для всех): ");
+                if (scanf("%s", filter_time) != 1) {
+                    printf("Ошибка ввода: введите строку.\n");
+                    while (getchar() != '\n');
+                    continue;
+                }
+                break;
+            }
+
+            analyze_mon_file(filter_mode, filter_status, filter_zone, filter_time);
             break;
         }
         case 5: {
@@ -484,7 +497,7 @@ int mon_sensor_data(const SensorData* data, int mode, int monitoring_enabled) {
     }
 
     char time_str[20];
-    strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", localtime(&data->timestamp));
+    strftime(time_str, sizeof(time_str), "%d-%m-%Y %H:%M:%S", localtime(&data->timestamp));
 
     fprintf(mon_file, "%d %d %s %s %s\n", mode, data->status, data->id, data->zone, time_str);
     fclose(mon_file);
@@ -499,7 +512,7 @@ int mon_sensor_data(const SensorData* data, int mode, int monitoring_enabled) {
  * filter_zone - зона для фильтрации (или "all" для всех зон).
  * Возвращает количество отфильтрованных записей или -1 при ошибке.
  */
-int analyze_mon_file(int filter_mode, int filter_status, const char* filter_zone) {
+int analyze_mon_file(int filter_mode, int filter_status, const char* filter_zone, const char* filter_time) {
     FILE* file = fopen(MONITORING_FILE, "r");
     if (!file) {
         perror("Ошибка открытия файла для анализа");
@@ -515,12 +528,13 @@ int analyze_mon_file(int filter_mode, int filter_status, const char* filter_zone
 
     while (fgets(line, sizeof(line), file)) {
         int mode, status;
-        char id[100], zone[100], time_str[20];
+        char id[100], zone[100], time_str[100];
 
         if (sscanf(line, "%d %d %s %s %s", &mode, &status, id, zone, time_str) == 5) {
             if ((filter_mode == -1 || mode == filter_mode) &&
                 (filter_status == -1 || status == filter_status) &&
-                (strcmp(filter_zone, "all") == 0 || strcmp(zone, filter_zone) == 0)) {
+                (strcmp(filter_zone, "all") == 0 || strcmp(zone, filter_zone) == 0) &&
+                (strcmp(filter_time, "all") == 0 || strcmp(time_str, filter_time) == 0)) {
                 printf("            %-12s | \t %-7d | %-13s | %-13s |     %s\n", mode_to_string(mode), status, id, zone, time_str);
                 record_count++;
             }
